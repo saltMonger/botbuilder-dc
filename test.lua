@@ -18,17 +18,18 @@ local currTick = 0
 
 local scene = {
     resources = {
-        ore = 0,
+        ore = 5,
         metal = 0,
         badges = 0,
         power = 0,
         boons = 0
     },
     buildings = {
+        -- power needs to be evaluated first (jank)
+        power = {},
         ore = {},
         metal = {},
         badges = {},
-        power = {},
         boons = {},
     },
     buildingManager = {}
@@ -45,12 +46,15 @@ local function loadLib(file)
     return raw()
 end
 
-function slowTick()
-    for i=1,#scene.buildings do
-        for j=1,#scene.buildings[i] do
-            scene.resources = scene.buildings[i][j]:produce(0, scene.resources)
-        end
-    end 
+function slowTick(currTick)
+    lastTick = currTick
+    for name, set in pairs(scene.buildings) do
+        for i=1,#set do
+            if set[i] ~= nil then
+                set[i]:produce(scene.resources)
+            end 
+        end 
+    end
 end
 
 function game.create()
@@ -66,6 +70,7 @@ function game.create()
         loadError = "failed to load buildingManager"
         return
     end
+
     loadError = "libs loaded"
     player = entity.new(320, 240)
     player:init()
@@ -78,15 +83,8 @@ function game.update(dt)
     realTime = realTime + dt
     local currTick = math.floor(realTime / 2)
     if currTick > lastTick then
-        lastTick = currTick
+        slowTick(currTick)
     end
-    -- if lastTick != tick then
-    --     slowTick()
-    --     lastTick = tick
-    -- end 
-    -- if lastTick != tick then
-    --     slowTick()
-    -- end
 end
 
 function game.render(dt)
@@ -96,11 +94,11 @@ function game.render(dt)
     -- draws text at the given position, and centers it if you add the "center" flag
     graphics.print("Fuck off!!!!", 320, 240, "center")
 
+    player:render(dt)
+
     graphics.print("Time overall:" .. tostring(realTime), 20, 20)
     graphics.print("Tick:" .. tostring(lastTick), 200, 20)
-
-    graphics.print("Ore:" .. tostring(scene.resources.ore), 20, 40)
-    graphics.print("Power:" .. tostring(scene.resources.power), 100, 40)
+    graphics.print("SCENE: " .. tostring(scene), 20, 30)
 
     -- graphics.print("Loop:" .. tostring(loop), 20, 60)
     graphics.print("ERROR > " .. tostring(loadError), 20, 100)
@@ -108,11 +106,16 @@ function game.render(dt)
     graphics.print("POS > " .. tostring(scene.buildingManager), 20, 140)
     graphics.print("BUILDINGS > " .. tostring(#scene.buildings.ore), 20, 160)
 
-    player:render(dt)
-
     for i = 1,#scene.buildings.ore,1 do
         scene.buildings.ore[i]:render(dt)
     end
+
+    graphics.print("Ore:" .. tostring(scene.resources.ore), 20, 400)
+    graphics.print("Metal:" .. tostring(scene.resources.metal), 100, 400)
+    graphics.print("Badges:" .. tostring(scene.resources.badges), 180, 400)
+
+    graphics.print("Power:" .. tostring(scene.resources.power), 20, 420)
+    graphics.print("Boons:" .. tostring(scene.resources.boons), 100, 420)
 end
 
 function game.free() 

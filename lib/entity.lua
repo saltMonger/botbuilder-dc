@@ -5,6 +5,10 @@ setmetatable(entity, {__call = function(cls, ...) return cls.new(...) end,})
 
 timer = require "lib.hump_timer"
 
+local buildItems = {
+    "ore", "metal", "badges", "power", "boons"
+}
+
 function entity.new(nx, ny)
     local obj = {
         realTime = 0,
@@ -14,6 +18,7 @@ function entity.new(nx, ny)
         sprite = {},
         currentDirection = nil,
         isMoving = false,
+        selectedBuildItem = 1
     }
 
     local self = setmetatable(obj, entity)
@@ -28,6 +33,38 @@ function entity:init()
     self.texture = graphics.loadTexture(findFile("assets/spritesheet.png"))
     self.sprite = sprite.new(nil, self.texture, 16, 4)
     self.sprite:play(0.1, 2 + 32, 9 + 32)
+end
+
+-- todo: refactor this shit
+function entity:latchInput(typ, val)
+    if typ == "left_trigger" then
+        if self.latch_leftTrigger == nil then 
+            self.latch_leftTrigger = val
+            return true
+        end
+        if (self.latch_leftTrigger > 0 and val == 0) then
+            self.latch_leftTrigger = 0
+            return false
+        end
+        if (self.latch_leftTrigger == 0 and val > 0) then
+            self.latch_leftTrigger = val
+            return true
+        end
+        return false
+    end
+    if self.latch_rightTrigger == nil then 
+        self.latch_rightTrigger = val
+        return true
+    end
+    if (self.latch_rightTrigger > 0 and val == 0) then
+        self.latch_rightTrigger = 0
+        return false
+    end
+    if (self.latch_rightTrigger == 0 and val > 0) then
+        self.latch_rightTrigger = val
+        return true
+    end
+    return false
 end
 
 function entity:update(dt, scene)
@@ -48,10 +85,23 @@ function entity:update(dt, scene)
 
     if input.getButton("A") then
         self.debugButtonPressed = true
-        local ret, resources = scene.buildingManager.devBuild(self.x, self.y, "ore", scene.resources)
-        self.returnSent = ret
-        scene.resources = ret.resources
+        local ret, resources = scene.buildingManager.devBuild(self.x, self.y, buildItems[self.selectedBuildItem], scene.resources)
+        scene.resources = resources
         table.insert(scene.buildings.ore, ret)
+    end 
+
+    local trig = input.getTriggers(1) 
+    if self:latchInput("left_trigger", trig.x) then
+        self.selectedBuildItem = self.selectedBuildItem - 1
+    end 
+    if self:latchInput("right_trigger", trig.y) then
+        self.selectedBuildItem = self.selectedBuildItem + 1
+    end
+
+    if self.selectedBuildItem < 1 then
+        self.selectedBuildItem = 1
+    elseif self.selectedBuildItem > #buildItems then
+        self.selectedBuildItem = #buildItems
     end 
 
     if input.getButton("START") then exit() end
@@ -64,8 +114,12 @@ function entity:render(dt)
     if self.debugButtonPressed then
         graphics.print("CURSOR > Build button pressed", 20, 180)
     end
+    if self.latch_rightTrigger then
+        graphics.print("R_TRIGGER: " .. tostring(self.latch_rightTrigger), 160, 180)
+    end
 
-    graphics.print("RETURN > " .. tostring(self.returnSent), 20, 200)
+    graphics.print("BUILD ITEM: " .. tostring(buildItems[self.selectedBuildItem]), 20, 440)
+    -- graphics.print("BUILD ITEM: " .. tostring(buildItems[self.selectedBuildItem]), 20, 440)
 end
 
 function entity:move(dir)
