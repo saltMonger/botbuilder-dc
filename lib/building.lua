@@ -144,18 +144,19 @@ function building:upgrade(resources)
 end
 
 function building:produce(resources)
-    return self:devProduce(resources)
-    --return self.devProduce(resources)
-    -- if self.resource == "power" then 
-    --     resources["power"] = resources["power"] + self.buildingInfo.productionAmount
-    --     return resources 
-    -- end
+    if self.resource == "power" then 
+        resources["power"] = resources["power"] + self.buildingInfo.productionAmount
+        return resources 
+    end
 
-    -- if resources["power"] > powerDrain then
-    --     resources["power"] = resources["power"] - self.buildingInfo.powerDrain
-    --     resources[resource] = resources[resource] + self.buildingInfo.productionAmount
-    -- end
-    -- return resources
+    if resources["power"] > powerDrain then
+        resources["power"] = resources["power"] - self.buildingInfo.powerDrain
+        resources[resource] = resources[resource] + self.buildingInfo.productionAmount
+    end
+
+    -- todo: set palette grayscale if it doesn't have power?
+
+    return resources
 end
 
 function building:devProduce(resources)

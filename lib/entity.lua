@@ -9,6 +9,8 @@ local buildItems = {
     "ore", "metal", "badges", "power", "boons"
 }
 
+local gridSpacing = 32
+
 function entity.new(nx, ny)
     local obj = {
         realTime = 0,
@@ -18,7 +20,10 @@ function entity.new(nx, ny)
         sprite = {},
         currentDirection = nil,
         isMoving = false,
-        selectedBuildItem = 1
+        selectedBuildItem = 1,
+
+        lastTickMoved = 0,
+        targetTick = 0
     }
 
     local self = setmetatable(obj, entity)
@@ -36,35 +41,102 @@ function entity:init()
 end
 
 -- todo: refactor this shit
+-- function entity:latchInput(typ, val)
+--     if typ == "left_trigger" then
+--         if self.latch_leftTrigger == nil then 
+--             self.latch_leftTrigger = val
+--             return true
+--         end
+--         if (self.latch_leftTrigger > 0 and val == 0) then
+--             self.latch_leftTrigger = 0
+--             return false
+--         end
+--         if (self.latch_leftTrigger == 0 and val > 0) then
+--             self.latch_leftTrigger = val
+--             return true
+--         end
+--         return false
+--     end
+--     if self.latch_rightTrigger == nil then 
+--         self.latch_rightTrigger = val
+--         return true
+--     end
+--     if (self.latch_rightTrigger > 0 and val == 0) then
+--         self.latch_rightTrigger = 0
+--         return false
+--     end
+--     if (self.latch_rightTrigger == 0 and val > 0) then
+--         self.latch_rightTrigger = val
+--         return true
+--     end
+--     return false
+-- end
+
 function entity:latchInput(typ, val)
-    if typ == "left_trigger" then
-        if self.latch_leftTrigger == nil then 
-            self.latch_leftTrigger = val
-            return true
-        end
-        if (self.latch_leftTrigger > 0 and val == 0) then
-            self.latch_leftTrigger = 0
-            return false
-        end
-        if (self.latch_leftTrigger == 0 and val > 0) then
-            self.latch_leftTrigger = val
-            return true
-        end
-        return false
-    end
-    if self.latch_rightTrigger == nil then 
-        self.latch_rightTrigger = val
+    if self["latch_"+typ] == nil then 
+        self["latch_"+typ] = val
         return true
     end
-    if (self.latch_rightTrigger > 0 and val == 0) then
-        self.latch_rightTrigger = 0
+    if (self["latch_"+typ] > 0 and val == 0) then
+        self["latch_"+typ] = 0
         return false
     end
-    if (self.latch_rightTrigger == 0 and val > 0) then
-        self.latch_rightTrigger = val
+    if (self["latch_"+typ] == 0 and val > 0) then
+        self["latch_"+typ] = val
         return true
     end
     return false
+end
+
+function entity:moveLatch()
+    local dirX, dirY
+    if input.getButtonDown("UP") then dirX = "UP"
+    elseif input.getButtonDown("DOWN") then dirX = "DOWN" end
+    
+    if input.getButtonDown("LEFT") then dirY = "LEFT"
+    elseif input.getButtonDown("RIGHT") then dirY = "RIGHT" end
+
+    if dirX or dirY then
+        -- early return here
+        return {
+            dirX = dirX,
+            dirY = dirY,
+            target = 10
+        }
+    end
+    -- try to read joystick
+    local joystick = input.getJoystick(1)
+    local mag = 0
+    if joystick.x ~= 0 then
+        if joystick.x > 0 then 
+            dirX = "RIGHT"
+            mag = joystick.x
+        else 
+            dirX = "LEFT" 
+            mag = -joystick.x 
+        end 
+        -- also need magnitude
+    end
+
+    if joystick.y ~= 0 then
+        if joystick.y > 0 then
+            dirY = "UP"
+            mag = mag + joystick.y
+        else 
+            dirY = "DOWN"
+            mag = mag + (-joystick.y)
+        end
+    end
+
+    if dirX and dirY then
+        mag = mag / 2
+    end
+
+    return {
+        dirX = dirX,
+        dirY = dirY, 
+        target = mag
+    }
 end
 
 function entity:update(dt, scene)
@@ -72,11 +144,18 @@ function entity:update(dt, scene)
     timer.update(dt)
     self.realTime = self.realTime + dt
 
-    self.isMoving = false
-    if input.getButtonDown("UP")    then self:move("UP") end
-    if input.getButtonDown("DOWN")  then self:move("DOWN") end
-    if input.getButtonDown("LEFT")  then self:move("LEFT") end
-    if input.getButtonDown("RIGHT") then self:move("RIGHT") end
+    local movement = self:moveLatch()
+    self.targetTick = movement.target
+    if self.lastTickMoved >= self.targetTick then
+        self.lastTickMoved = 0
+        self:move(movement)
+    end
+
+    -- todo, this needs changed...
+    local currTick = math.floor(self.realTime / 2)
+    if currTick > self.lastTickMoved then
+        self.lastTickMoved = self.lastTickMoved + 1
+    end
 
     if self.isMoving == false then
         self.sprite:stop()
@@ -124,29 +203,16 @@ end
 
 function entity:move(dir)
     local speed = 2
-    if      dir == "UP" then
+    if      dir.dirY == "UP" then
         self.y = self.y - speed
-    elseif  dir == "DOWN" then
+    elseif  dir.dirY == "DOWN" then
         self.y = self.y + speed
-    elseif  dir == "LEFT" then
-        self.x = self.x - speed
-    elseif  dir == "RIGHT" then
-        self.x = self.x + speed
     end
 
-    self.isMoving = true
-
-    if dir == self.currentDirection then return end
-    self.currentDirection = dir
-
-    if      dir == "UP" then
-        self.sprite:loop(0.1, 2, 9)
-    elseif  dir == "LEFT" then
-        self.sprite:loop(0.1, 2+16, 9+16)
-    elseif  dir == "DOWN" then
-        self.sprite:loop(0.1, 2+32, 9+32)
-    elseif  dir == "RIGHT" then
-        self.sprite:loop(0.1, 2+48, 9+48)
+    if  dir.dirX == "LEFT" then
+        self.x = self.x - speed
+    elseif  dir.dirX == "RIGHT" then
+        self.x = self.x + speed
     end
 end
 
