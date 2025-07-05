@@ -22,6 +22,9 @@ function entity.new(nx, ny)
         isMoving = false,
         selectedBuildItem = 1,
 
+        lastAxisX = nil,
+        lastAxisY = nil,
+
         lastTickMoved = 0,
         targetTick = 0
     }
@@ -37,6 +40,7 @@ end
 function entity:init()
     self.texture = graphics.loadTexture(findFile("assets/spritesheet.png"))
     self.sprite = sprite.new(nil, self.texture, 16, 4)
+    self.sprite.setTimer(timer)
     self.sprite:play(0.1, 2 + 32, 9 + 32)
 end
 
@@ -72,29 +76,47 @@ end
 --     return false
 -- end
 
+-- latchInput is called on normal update (60 fps?)
+-- todo: also really only for triggers
 function entity:latchInput(typ, val)
-    if self["latch_"+typ] == nil then 
-        self["latch_"+typ] = val
-        return true
+    local ctyp = tostring(typ)
+    if self["latch_"..ctyp] == nil then 
+        self["latch_"..ctyp] = val
+        self["latch_tick_"..ctyp] = 0
+        return val > 0
     end
-    if (self["latch_"+typ] > 0 and val == 0) then
-        self["latch_"+typ] = 0
+    if (self["latch_"..ctyp] > 0 and val == 0) then
+        self["latch_"..ctyp] = 0
+        self["latch_tick_"..ctyp] = 0
         return false
     end
-    if (self["latch_"+typ] == 0 and val > 0) then
-        self["latch_"+typ] = val
+    if (self["latch_"..ctyp] == 0 and val > 0) then
+        self["latch_"..ctyp] = val
+        self["latch_tick_"..ctyp] = 0
         return true
     end
-    return false
+
+    if val == 0 then
+        return false
+    end
+
+    -- this latch is being depressed
+    if self["latch_tick_"..ctyp] ~= 10 then
+        self["latch_tick_"..ctyp] = self["latch_tick_"..ctyp] + 1
+        return false
+    end
+    
+    self["latch_tick_"..ctyp] = 0
+    return true
 end
 
 function entity:moveLatch()
     local dirX, dirY
-    if input.getButtonDown("UP") then dirX = "UP"
-    elseif input.getButtonDown("DOWN") then dirX = "DOWN" end
+    if input.getButtonDown("UP") then dirY = "UP"
+    elseif input.getButtonDown("DOWN") then dirY = "DOWN" end
     
-    if input.getButtonDown("LEFT") then dirY = "LEFT"
-    elseif input.getButtonDown("RIGHT") then dirY = "RIGHT" end
+    if input.getButtonDown("LEFT") then dirX = "LEFT"
+    elseif input.getButtonDown("RIGHT") then dirX = "RIGHT" end
 
     if dirX or dirY then
         -- early return here
@@ -139,28 +161,45 @@ function entity:moveLatch()
     }
 end
 
-function entity:update(dt, scene)
-    -- we need the timer to update the animation
-    timer.update(dt)
-    self.realTime = self.realTime + dt
-
+function entity:moveUpdate(dt)
     local movement = self:moveLatch()
+
+    -- need to move on first press and then allow repeat
+    if self.lastAxisX ~= movement.dirX or self.lastAxisY ~= movement.dirY then
+        self.lastTickMoved = 0
+        self:move(movement)
+    end
+
+    if movement.dirX == nil and movement.dirY == nil then
+        self.lastTickMoved = 0
+        self.lastAxisX = nil
+        self.lastAxisY = nil
+        return
+    end
+
     self.targetTick = movement.target
     if self.lastTickMoved >= self.targetTick then
         self.lastTickMoved = 0
         self:move(movement)
     end
 
-    -- todo, this needs changed...
-    local currTick = math.floor(self.realTime / 2)
-    if currTick > self.lastTickMoved then
+    if movement.dirX ~= nil or movement.dirY ~= nil then
         self.lastTickMoved = self.lastTickMoved + 1
     end
 
+    -- todo: unused?
     if self.isMoving == false then
         self.sprite:stop()
         self.currentDirection = nil
     end
+end
+
+function entity:update(dt, scene)
+    -- we need the timer to update the animation
+    timer.update(dt)
+    self.realTime = self.realTime + dt
+
+    self:moveUpdate(dt)
 
     if input.getButton("A") then
         self.debugButtonPressed = true
@@ -202,7 +241,7 @@ function entity:render(dt)
 end
 
 function entity:move(dir)
-    local speed = 2
+    local speed = 8
     if      dir.dirY == "UP" then
         self.y = self.y - speed
     elseif  dir.dirY == "DOWN" then

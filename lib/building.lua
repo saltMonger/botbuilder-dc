@@ -145,13 +145,13 @@ end
 
 function building:produce(resources)
     if self.resource == "power" then 
-        resources["power"] = resources["power"] + self.buildingInfo.productionAmount
+        resources["power"] = resources["power"] + self.buildingInfo.production
         return resources 
     end
 
-    if resources["power"] > powerDrain then
+    if resources["power"] > self.buildingInfo.powerDrain then
         resources["power"] = resources["power"] - self.buildingInfo.powerDrain
-        resources[resource] = resources[resource] + self.buildingInfo.productionAmount
+        resources[self.resource] = resources[self.resource] + self.buildingInfo.production
     end
 
     -- todo: set palette grayscale if it doesn't have power?
